@@ -3,51 +3,111 @@
 # this is some code to help me understand the Consensus problem
 # and the finite-time Consensus property of some graphs. 
 
-# INPUTS:
+# imports
 
-N = 50
-
-# an undirected simple graph graph representing the connectivity between the agents
-# assumed to be a connected graph
-GRAPH_TOPOLOGY = [[]] 
-
-# the initial values that the agents hold at t = 0.
-INIT_VALUES = []
-AVERAGE = sum(INIT_VALUES) / len(INIT_VALUES)
+import numpy as np
+import matplotlib as plt
 
 # functions to iterate
 
-def assign_weights(incidence_matrix: list) -> list:
+def degree(agent: int, incidence_matrix: list) -> int:
     '''
-    Takes in an undirected graph ,
-    and returns the same topology but with assigned weights.
-    Returned matrix is doubly stochastic
+    Takes in an agent and the topology,
+    return the degree, defined as the number of neighbors, of the agent
     '''
-    return []
+    deg = 0
+    for nb in incidence_matrix[agent]:
+        if nb != 0 and nb != agent: # excludes self
+            deg += 1
+    return deg
 
-def update_agents(agent_values: list) -> None:
+def assign_weights(topology: list) -> list:
     '''
-    Modifies values of the agents according to their neighbors
+    Takes in a topology,
+    and returns the same topology but with assigned weights.
+    Returned matrix should be doubly stochastic
     '''
+    # initialize incidence matrix to be zeroes
+    graph = np.zeros([len(topology), len(topology)], dtype = int)
+    
+    for i in range(len(topology)):
+        for j in range(len(topology[i])):
+            if i != j and topology[i][j] != 0:
+                graph[i][j] = 1 / (1 + max(degree(i, topology), degree(j, topology)))
+    
+    for i in range(len(topology)):
+        graph[i][i] = 1 - sum(graph[i])
+    
+    return graph.tolist()
+
+def update_agents(agent_values: list, incidence_matrix: list) -> list:
+    '''
+    Calculate and return the agents' values 
+    according to their neighbors and their respective weights
+    '''
+    agent_values = np.transpose(agent_values)
+    incidence_matrix = np.array(incidence_matrix)
+    new_agent_values = np.matmul(incidence_matrix, agent_values)
+
+    return list(np.transpose(new_agent_values))
+
+
+def iterate_step(agent_values: list, incidence_matrix: list) -> None:
+    '''
+    modifies values of agents and, if applicable, the graph topology
+    '''
+    agent_values = update_agents(agent_values, incidence_matrix)
+    # if need to modify topology, can add code below:
 
 # functions to calculate and plot error
 
-def calculate_squared_error(agent_values: list) -> float:
+def calculate_squared_error(agent_values: list, average: float) -> float:
     '''
-    Takes in the agent values and calculates the squared error
+    Takes in the agent values and the average; calculates the squared error
     '''
-    return 0.0
+    error = 0
+    for value in agent_values:
+        error += (average - value)**2
+    return error
 
 def plot_error(errors: list) -> None:
     '''
     Takes in squared error values and
     plots error vs. # of iterations
     '''
+    iterations = np.array([i for i in range(len(errors))])
+
+    plt.plot(iterations, np.arrary(errors))
+    plt.show()
 
 # functions to generate graphs
 
 
 
-# initialize values and weights 
-agent_values = INIT_VALUES
-errors = []
+# functions to run main experiment
+
+def run_experiment(num_of_iter: int, graph_topology: list, init_values: list) -> None:
+    '''
+    Inputs:
+    - num_of_iter: the number of iterations to run
+    - graph_topology: an incidence matrix represented by a list of lists
+    that represents the topology between the agents. Assumed to be connected.
+    - init_values: a list of floats representing the initial values
+    held by the agents
+
+    Runs the experiment and plots the squared error against number of iterations up to num_of_iter
+    '''
+    average = sum(init_values) / len(init_values)
+
+    # initialize values and weights 
+    agent_values = init_values
+    incidence_matrix = assign_weights(graph_topology)
+    errors = []
+
+    # run the experiment
+    for idx in range(num_of_iter):
+        iterate_step(agent_values, incidence_matrix)
+        errors.append(calculate_squared_error(agent_values, average))
+
+    # plot the error
+    plot_error(errors)
