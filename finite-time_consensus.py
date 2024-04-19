@@ -72,13 +72,12 @@ def assign_weights(topology: list) -> list:
 
 # print(assign_weights(topology))
 
-
 def update_agents(agent_values: list, incidence_matrix: list) -> list:
     '''
     Calculate and return the agents' values 
     according to their neighbors and their respective weights
     '''
-    agent_values = np.transpose(agent_values)
+    agent_values = np.transpose(np.array(agent_values))
     incidence_matrix = np.array(incidence_matrix)
     new_agent_values = np.matmul(incidence_matrix, agent_values)
 
@@ -103,6 +102,7 @@ def iterate_step(agent_values: list, incidence_matrix: list, iteration: int, one
     modifies values of agents and, if applicable, the graph topology
     '''
     agent_values = update_agents(agent_values, incidence_matrix)
+
     # if need to modify topology, can add code below:
 
     if one_peer_exp_flag:
@@ -147,7 +147,7 @@ def plot_error(errors: list) -> float:
     plt.scatter(iterations, errors, color='blue', label='Errors')
 
     # finding parameters of best fit exponential
-    params, covariance = scipy.optimize.curve_fit(exponential_func, iterations, errors, p0=(1, 0.01))
+    params = scipy.optimize.curve_fit(exponential_func, iterations, errors, p0=(1, 0.01))[0]
 
     # generating data for the fitted curve
     fitted_values = exponential_func(iterations, *params)
@@ -305,41 +305,83 @@ def p_peer_hypercuboids(n: int, iteration: int) -> list:
 
 # functions to visualize the graphs
 
-def plot_multiple_graphs(inc_matrices: list, titles=None) -> None:
+def plot_multiple_graphs(incidence_matrices: list, names = None) -> None:
     """
-    Plot multiple graphs based on a list of incidence matrices as subfigures on the same plot.
-
-    titles is an optional list of titles for each corresponding graph
+    Takes a list of incidence matrices and plots each graph as subplots in a single figure.
     """
-    for idx in range(len(inc_matrices)):
-        inc_matrices[idx] = np.array(inc_matrices[idx])
+    num_graphs = len(incidence_matrices)
+    cols = 3  # Number of columns in subplot grid
+    rows = (num_graphs + cols - 1) // cols  # Calculate required number of rows
+    
+    # Create a figure with subplots
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4))
+    if num_graphs == 1:
+        axes = [axes]  # Make it iterable if only one subplot
+    
+    # Flatten axes array if more than one row and column
+    axes = axes.flatten() if isinstance(axes, np.ndarray) else axes
+    
+    for idx, matrix in enumerate(incidence_matrices):
+        matrix = np.array(matrix)
+        # Create a graph from an incidence matrix
+        G = nx.from_numpy_array(matrix, create_using=nx.Graph)
         
-    n = len(inc_matrices)  # Number of graphs to plot
-    fig, axes = plt.subplots(1, n, figsize=(n * 5, 5))  # Prepare subplot grid
+        # Plot the graph
+        nx.draw(G, ax=axes[idx], with_labels=True, node_color='skyblue', 
+                node_size=700, font_size=12, font_color='darkred')
+        if not names:
+            axes[idx].set_title(f"Graph {idx+1}")
+        else:
+            axes[idx].set_title(names[idx])
+    
+    # Turn off axes for unused subplots
+    for idx in range(num_graphs, len(axes)):
+        axes[idx].axis('off')
+    
+    plt.tight_layout()
+    plt.show()
 
-    if n == 1:
-        axes = [axes]  # Make it iterable if only one axis
-
-    for i, inc_matrix in enumerate(inc_matrices):
-        ax = axes[i]
-        G = nx.Graph()  # Create a new graph
-        rows, cols = inc_matrix.shape
-
-        # Add nodes
-        G.add_nodes_from(range(cols))
-
-        # Add edges
-        for j in range(rows):
-            nodes = np.where(inc_matrix[j, :] != 0)[0]
-            if len(nodes) == 2:
-                G.add_edge(nodes[0], nodes[1])
-
-        # Draw the graph
-        pos = nx.spring_layout(G)  # positions for all nodes
-        nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', node_size=500, edge_color='k', linewidths=1, font_size=15)
-        if titles and i < len(titles):
-            ax.set_title(titles[i])
-
+def plot_directed_graphs(incidence_matrices: list, names = None) -> None:
+    """
+    Takes a list of incidence matrices where a positive value at position (i, j) indicates
+    an edge from node i to node j, and plots each directed graph as subplots in a single figure.
+    """
+    num_graphs = len(incidence_matrices)
+    cols = 3  # Number of columns in subplot grid
+    rows = (num_graphs + cols - 1) // cols  # Calculate required number of rows
+    
+    # Create a figure with subplots
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4))
+    if num_graphs == 1:
+        axes = [axes]  # Make it iterable if only one subplot
+    
+    # Flatten axes array if more than one row and column
+    axes = axes.flatten() if isinstance(axes, np.ndarray) else axes
+    
+    for idx, matrix in enumerate(incidence_matrices):
+        matrix = np.array(matrix)
+        G = nx.DiGraph()
+        num_nodes = matrix.shape[0]
+        
+        # Building the graph from the incidence matrix
+        for i in range(num_nodes):
+            for j in range(num_nodes):
+                if matrix[i, j] > 0:  # There is an edge from i to j
+                    G.add_edge(i, j)
+        
+        # Plot the graph
+        pos = nx.spring_layout(G)  # Positions for all nodes
+        nx.draw(G, pos, ax=axes[idx], with_labels=True, node_color='skyblue', 
+                node_size=700, font_color='darkred', arrows=True, arrowstyle='-|>')
+        if names:
+            axes[idx].set_title(names[idx])
+        else:
+            axes[idx].set_title(f"Directed Graph {idx+1}")
+    
+    # Turn off axes for unused subplots
+    for idx in range(num_graphs, len(axes)):
+        axes[idx].axis('off')
+    
     plt.tight_layout()
     plt.show()
 
@@ -363,7 +405,8 @@ def run_experiment(num_of_iter: int, graph_topology: list, init_values: list, on
 
     # initialize values and weights 
     agent_values = init_values
-    incidence_matrix = assign_weights(graph_topology)
+    # incidence_matrix = assign_weights(graph_topology)
+    incidence_matrix = graph_topology
     errors = []
 
     # run the experiment
@@ -377,19 +420,22 @@ def run_experiment(num_of_iter: int, graph_topology: list, init_values: list, on
         
     # plot the error and return lambda
     # print(errors)
-    return plot_error(errors)
+    if errors:
+        return plot_error(errors)
+    else:
+        return 0
 
 # ------------------------------------------------------------------------------------------------
 # # EXPERIMENT 1: connectivity and lambda
 
-# test graph No. 1: C_4
+# # test graph No. 1: C_4
 # topology1 =  [
 #     [0, 1, 0, 1],  
 #     [1, 0, 1, 0],  
 #     [0, 1, 0, 1],  
 #     [1, 0, 1, 0]   
 # ]
-
+# c_4 = assign_weights(topology1)
 # # test graph No. 2: more connected than C_4, less than K_4
 # topology2 = [
 #     [0, 1, 1, 0],  
@@ -397,7 +443,7 @@ def run_experiment(num_of_iter: int, graph_topology: list, init_values: list, on
 #     [1, 1, 0, 0],  
 #     [0, 1, 0, 0]   
 # ]
-
+# four_nodes = assign_weights(topology2)
 # # test graph No. 3: K_4
 # topology3 = [ 
 #     [0, 1, 1, 1],  
@@ -405,10 +451,11 @@ def run_experiment(num_of_iter: int, graph_topology: list, init_values: list, on
 #     [1, 1, 0, 1],  
 #     [1, 1, 1, 0]   
 # ]
+# k_4 = assign_weights(topology3)
 
-# print(run_experiment(50, topology1, [10, 20, 30, 40]))
-# print(run_experiment(50, topology2, [10, 20, 30, 40]))
-# print(run_experiment(50, topology3, [10, 20, 30, 40]))
+# print(run_experiment(50, c_4, [10, 20, 30, 40]))
+# print(run_experiment(50, four_nodes, [10, 20, 30, 40]))
+# print(run_experiment(50, k_4, [10, 20, 30, 40]))
 
 # # result: It seems that this relation is quite straightforward,
 # # though more data is needed for a better understanding of how this works.
@@ -421,14 +468,14 @@ def run_experiment(num_of_iter: int, graph_topology: list, init_values: list, on
 # let us plot de bruijn graphs with p = 2, tau = 1, 2, 3, 4, 5
 # as well as p = 3, tau = 1, 2, 3, 4, 5
 
-de_bruijn_graphs = []
-p = 2
-for tau in range(1, 6):
-    de_bruijn_graphs.append(de_bruijn(p, tau))    
-plot_multiple_graphs(de_bruijn_graphs)
+# de_bruijn_graphs = []
+# p = 2
+# for tau in range(1, 6):
+#     de_bruijn_graphs.append(de_bruijn(p, tau))    
+# plot_directed_graphs(de_bruijn_graphs)
 
 # 2.2 convergence 
-# print(run_experiment(1000, de_bruijn(2, 3), [10, 20, 30, 40, 50, 60, 70, 80]))
+# print(run_experiment(1000, de_bruijn(2, 3), [1, 2, 3, 4, 5, 6, 7, 8]))
 
 # # result: consensus is reached in ~10 iterations, depending on the cutoff. NOT consisent.
 # # THE CONSENSUS SHOULD HAVE BEEN REACHED IN three (3) ITERATIONS
@@ -439,15 +486,15 @@ plot_multiple_graphs(de_bruijn_graphs)
 # let us plot the first 4 one-peer exponential graphs, starting with tau = 2
 
 # one_p_graphs = []
-# tau = 5
+# tau = 2
 # for iteration in range(tau):
 #     one_p_graphs.append(one_peer_exponential(2**tau, iteration))
-# plot_multiple_graphs(one_p_graphs)
+# plot_directed_graphs(one_p_graphs)
 
 # 3.2 consensus convergence
-# print(run_experiment(100, one_peer_exponential(8, 0), [10, 20, 30, 40, 50, 60, 70, 80], one_peer_exp_flag = True))
+# print(run_experiment(100, one_peer_exponential(32, 0), [i+1 for i in range(32)], one_peer_exp_flag = True))
 
-# # results: consistent with the argument made in paper which says that consensus should be reached in 3 iterations.
+# # results: consistent with the argument made in paper which says that consensus should be reached in 5 iterations.
 # ------------------------------------------------------------------------------------------------
 # # EXPERIMENT 4: p-peer hyper-cuboids
 
