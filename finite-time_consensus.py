@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.optimize
 import math
+import networkx as nx
 
 # functions to iterate
 
@@ -168,10 +169,42 @@ def plot_error(errors: list) -> float:
 
 # functions to generate graphs
 
-def de_brujin() -> list:
+def p_base_rep(i: int, p: int, tau: int) -> list:
     '''
+    given an integer i in base 10 representation,
+    returns i in base p representation in the form of a tuple:
+    [i_{tau-1}, i_{tau-2}, ..., i_0]
     '''
-    return []
+    p_base = []
+    while i > 0:
+        p_base.append(i % p)
+        i = i // p
+    
+    p_base.extend([0]*(tau - len(p_base)))
+    p_base.reverse()
+
+    return p_base
+
+# print(p_base_rep(236, 5))
+
+def de_bruijn(p: int, tau: int) -> list:
+    '''
+    Given integers p and tau, where the number of agents is p**tau,
+    returns the de bruijn graph with its appropriate weights
+    '''
+    n = p**tau
+    graph = [[0] * n for i in range(n)]
+    p_base_nums = []
+    for num in range(n):
+        p_base_nums.append(p_base_rep(num, p, tau))
+    
+    for i in range(n):
+        for j in range(n):
+            if tuple(p_base_nums[i][1:]) == tuple(p_base_nums[j][:-1]):
+                graph[i][j] = 1/p
+    return graph
+
+# print(de_bruijn(2, 3))
 
 def one_peer_exponential(n: int, iteration: int) -> list:
     '''
@@ -270,6 +303,46 @@ def p_peer_hypercuboids(n: int, iteration: int) -> list:
 # print(p_peer_hypercuboids(12, 1))
 # print(p_peer_hypercuboids(12, 2))
 
+# functions to visualize the graphs
+
+def plot_multiple_graphs(inc_matrices: list, titles=None) -> None:
+    """
+    Plot multiple graphs based on a list of incidence matrices as subfigures on the same plot.
+
+    titles is an optional list of titles for each corresponding graph
+    """
+    for idx in range(len(inc_matrices)):
+        inc_matrices[idx] = np.array(inc_matrices[idx])
+        
+    n = len(inc_matrices)  # Number of graphs to plot
+    fig, axes = plt.subplots(1, n, figsize=(n * 5, 5))  # Prepare subplot grid
+
+    if n == 1:
+        axes = [axes]  # Make it iterable if only one axis
+
+    for i, inc_matrix in enumerate(inc_matrices):
+        ax = axes[i]
+        G = nx.Graph()  # Create a new graph
+        rows, cols = inc_matrix.shape
+
+        # Add nodes
+        G.add_nodes_from(range(cols))
+
+        # Add edges
+        for j in range(rows):
+            nodes = np.where(inc_matrix[j, :] != 0)[0]
+            if len(nodes) == 2:
+                G.add_edge(nodes[0], nodes[1])
+
+        # Draw the graph
+        pos = nx.spring_layout(G)  # positions for all nodes
+        nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', node_size=500, edge_color='k', linewidths=1, font_size=15)
+        if titles and i < len(titles):
+            ax.set_title(titles[i])
+
+    plt.tight_layout()
+    plt.show()
+
 # functions to run main experiment
 
 def run_experiment(num_of_iter: int, graph_topology: list, init_values: list, one_peer_exp_flag = False, p_peer_flag = False) -> float:
@@ -303,12 +376,13 @@ def run_experiment(num_of_iter: int, graph_topology: list, init_values: list, on
         errors.append(error)
         
     # plot the error and return lambda
-    print(errors)
+    # print(errors)
     return plot_error(errors)
 
-# test cases
+# ------------------------------------------------------------------------------------------------
+# # EXPERIMENT 1: connectivity and lambda
 
-# # test graph No. 1: C_4
+# test graph No. 1: C_4
 # topology1 =  [
 #     [0, 1, 0, 1],  
 #     [1, 0, 1, 0],  
@@ -331,8 +405,6 @@ def run_experiment(num_of_iter: int, graph_topology: list, init_values: list, on
 #     [1, 1, 0, 1],  
 #     [1, 1, 1, 0]   
 # ]
-# ------------------------------------------------------------------------------------------------
-# # EXPERIMENT 1: connectivity and lambda
 
 # print(run_experiment(50, topology1, [10, 20, 30, 40]))
 # print(run_experiment(50, topology2, [10, 20, 30, 40]))
@@ -343,32 +415,52 @@ def run_experiment(num_of_iter: int, graph_topology: list, init_values: list, on
 # # perhaps we can quantify graph connectivity (with its number of veritices and edges..?)
 # # so that we can plot lambda against the connectivity quantifier
 # ------------------------------------------------------------------------------------------------
-# # EXPERIMENT 2: de Brojin Graphs
+# # EXPERIMENT 2: de bruijn Graphs
 
-# # I will use the one given in the paper with p = 2 and tau = 3 as an example
-# de_brujin = [ 
-#     [1, 1, 0, 0, 0, 0, 0, 0],
-#     [0, 0, 1, 1, 0, 0, 0, 0],
-#     [0, 0, 0, 0, 1, 1, 0, 0],
-#     [0, 0, 0, 0, 0, 0, 1, 1],
-#     [1, 1, 0, 0, 0, 0, 0, 0],
-#     [0, 0, 1, 1, 0, 0, 0, 0],
-#     [0, 0, 0, 0, 1, 1, 0, 0],
-#     [0, 0, 0, 0, 0, 0, 1, 1]
-# ]
+# 2.1 plotting some de bruijn graphs
+# let us plot de bruijn graphs with p = 2, tau = 1, 2, 3, 4, 5
+# as well as p = 3, tau = 1, 2, 3, 4, 5
 
-# print(run_experiment(1000, de_brujin, [10, 20, 30, 40, 50, 60, 70, 80]))
+de_bruijn_graphs = []
+p = 2
+for tau in range(1, 6):
+    de_bruijn_graphs.append(de_bruijn(p, tau))    
+plot_multiple_graphs(de_bruijn_graphs)
 
-# # result: consensus is reached in ~10 iterations, depending on the cutoff
+# 2.2 convergence 
+# print(run_experiment(1000, de_bruijn(2, 3), [10, 20, 30, 40, 50, 60, 70, 80]))
+
+# # result: consensus is reached in ~10 iterations, depending on the cutoff. NOT consisent.
+# # THE CONSENSUS SHOULD HAVE BEEN REACHED IN three (3) ITERATIONS
 # ------------------------------------------------------------------------------------------------
 # # EXPERIMENT 3: One-peer Exponential graphs
 
+# 3.1: plotting some one-peer exponential graphs
+# let us plot the first 4 one-peer exponential graphs, starting with tau = 2
+
+# one_p_graphs = []
+# tau = 5
+# for iteration in range(tau):
+#     one_p_graphs.append(one_peer_exponential(2**tau, iteration))
+# plot_multiple_graphs(one_p_graphs)
+
+# 3.2 consensus convergence
 # print(run_experiment(100, one_peer_exponential(8, 0), [10, 20, 30, 40, 50, 60, 70, 80], one_peer_exp_flag = True))
 
 # # results: consistent with the argument made in paper which says that consensus should be reached in 3 iterations.
 # ------------------------------------------------------------------------------------------------
 # # EXPERIMENT 4: p-peer hyper-cuboids
 
+# 4.1 plotting some p-peer exponential graphs
+# lets plot graphs for n=8, 12, 16, 18, 24
+
+# p_peer_graphs = []
+# n = 24
+# for iteration in range(len(find_prime_factors(n))):
+#     p_peer_graphs.append(p_peer_hypercuboids(n, iteration))
+# plot_multiple_graphs(p_peer_graphs)
+
+# 4.2 consensus convergence
 # print(run_experiment(100, p_peer_hypercuboids(12, 0), [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120], p_peer_flag=True))
 
 # # results: consistent with the argument made in paper which says that consensus should be reached in 3 iterations.
